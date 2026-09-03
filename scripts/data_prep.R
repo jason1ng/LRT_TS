@@ -1,0 +1,63 @@
+# 01_data_prep.R - load + aggregate LRT Ampang daily ridership to monthly.
+# Source: data.gov.my Daily Public Transport Ridership dataset
+# (https://data.gov.my/data-catalogue/ridership_headline)
+#
+# Important: full period retained (2019-01 to 2026-06), including the
+# COVID-19 MCO period. The 2020-2021 disruption
+# is resolved via a known-intervention adjustment in 02_mco_resolution.R,
+# not by truncating the series.
+
+source("scripts/setup.R")
+
+raw <- read.csv("data/ridership_headline.csv", stringsAsFactors = FALSE)
+raw$date <- as.Date(raw$date)
+
+# Aggregate daily -> monthly totals (sum of trips per calendar month)
+monthly <- raw %>%
+  mutate(month = floor_date(date, "month")) %>%
+  group_by(month) %>%
+  summarise(
+    rail_lrt_ampang = sum(rail_lrt_ampang, na.rm = TRUE),
+    n_days = n()
+  ) %>%
+  ungroup()
+
+# Drop partial calendar month
+monthly <- monthly %>% filter(n_days >= 28)
+
+cat("Monthly series:", nrow(monthly), "months,",
+    format(min(monthly$month)), "to", format(max(monthly$month)), "\n")
+
+# Convert to ts object, frequency = 12 (monthly seasonality)
+start_year  <- year(min(monthly$month))
+start_month <- month(min(monthly$month))
+ampang_ts <- ts(monthly$rail_lrt_ampang, start = c(start_year, start_month), frequency = 12)
+
+ts.plot(
+  ampang_ts / 1000,
+  main = "Monthly LRT Ampang Ridership",
+  xlab = "Year",
+  ylab = "Ridership ('000)",
+  lwd = 1
+)
+
+# verification checks (used to confirm report figures)
+nrow(monthly)
+range(monthly$month)
+monthly %>% arrange(month) %>% select(month, n_days) %>% print(n = Inf)
+
+# 2020 trough
+covid1 <- monthly %>% filter(year(month) == 2020)
+covid1[which.min(covid1$rail_lrt_ampang), c("month", "rail_lrt_ampang")]
+
+# 2021 trough
+covid2 <- monthly %>% filter(year(month) == 2021)
+covid2[which.min(covid2$rail_lrt_ampang), c("month", "rail_lrt_ampang")]
+
+# 2022 range
+range2022 <- monthly %>% filter(year(month) == 2022)
+summary(range2022$rail_lrt_ampang)
+saveRDS(ampang_ts, "data/ampang_monthly_full.rds")
+saveRDS(monthly, "data/ampang_monthly_full_df.rds")
+
+cat("Saved data/ampang_monthly_full.rds - length:", length(ampang_ts), "\n")
