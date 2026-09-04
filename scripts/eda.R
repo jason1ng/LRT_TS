@@ -26,6 +26,12 @@ ts.plot(ampang_ts, main = "Monthly Ridership (2019-2026, MCO-resolved)",
         xlab = "Year", ylab = "", yaxt = "n")
 axis_millions()
 
+png(fig("eda", "acf_pacf_raw.png"), width = 800, height = 400, res = 130)
+par(mfrow = c(1, 2))
+Acf(ampang_ts,  lag.max = 24, main = "ACF (raw series, before differencing)")
+Pacf(ampang_ts, lag.max = 24, main = "PACF (raw series, before differencing)")
+dev.off()
+
 # panel 2: seasonal plot (base graphics version of ggseasonplot)
 seasonplot(ampang_ts, main = "Seasonal Plot", ylab = "", yaxt = "n",
            col = rainbow(8), year.labels = FALSE)

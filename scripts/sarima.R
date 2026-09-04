@@ -132,6 +132,10 @@ cat("ACF-out-of-bounds: lag12 =", acf_out_of_bounds(residuals(fit_sarima), lag.m
     "/ 12 | lag", LAG_MAX, "=",
     acf_out_of_bounds(residuals(fit_sarima), lag.max = LAG_MAX), "/", LAG_MAX, "\n")
 
+png(fig("models", "sarima_resid.png"), width = 900, height = 700, res = 130)
+checkresiduals(fit_sarima)
+dev.off()
+
 png(fig("models", "sarima_residuals.png"), width = 900, height = 700, res = 130)
 par(mfrow = c(2, 2))
 plot(residuals(fit_sarima), main = "Residuals over time", ylab = "")
