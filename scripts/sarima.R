@@ -1,8 +1,4 @@
-# 05_sarima.R - SARIMA model, following the Box-Jenkins procedure:
-#   Stage 1: Identification    - determine d, D and narrow down p,q,P,Q
-#   Stage 2: Estimation        - fit candidate models, compare by AICc
-#   Stage 3: Diagnostic checking - residuals should look like white noise
-#   Stage 4: Alternative models - grid search covers this automatically
+# Fit and evaluate a SARIMA model.
 
 source("scripts/setup.R")
 
@@ -11,27 +7,14 @@ sp <- split_series(y)
 train <- sp$train
 test  <- sp$test
 
-# ========================================================================
-# STAGE 1: IDENTIFICATION
-# ========================================================================
+# Stage 1: identification.
 
-# Step 1a: plot the data, check stationarity in mean/variance (done in
-# 03_eda.R - trend visible, seasonal pattern visible, no variance
-# transform needed since seasonal amplitude doesn't grow with the trend)
-
-# Step 1b: make the series stationary by differencing.
-# Textbook rule: for seasonal data, take the seasonal difference FIRST;
-# if still non-stationary, take a further non-seasonal difference.
-D <- nsdiffs(train)                                   # seasonal difference needed?
+# Select seasonal and non-seasonal differencing orders.
+D <- nsdiffs(train)
 d <- ndiffs(if (D > 0) diff(train, lag = 12) else train, test = "kpss")
 cat("Identification: d =", d, ", D =", D, "(seasonal period = 12)\n")
 
-# Step 1c: once stationary, examine ACF/PACF for remaining pattern.
-# Textbook guide: AR(p) -> PACF cuts off after lag p, ACF decays.
-#                 MA(q) -> ACF cuts off after lag q, PACF decays.
-#                 Seasonal spike at lag 12 -> seasonal AR/MA term needed.
-# This is exactly what 03_eda.R's ACF/PACF panels are checked for -
-# informs the RANGE searched below, not a single fixed guess.
+# Inspect the stationary series before fitting candidate models.
 stationary_train <- diff(train, differences = d)
 if (D > 0) stationary_train <- diff(stationary_train, lag = 12)
 
@@ -41,14 +24,9 @@ Acf(stationary_train,  lag.max = 24, main = "ACF (stationary series)")
 Pacf(stationary_train, lag.max = 24, main = "PACF (stationary series)")
 dev.off()
 
-# ========================================================================
-# STAGE 2: ESTIMATION (+ STAGE 4: alternative models via AICc grid search)
-# ========================================================================
+# Stage 2: estimation and model selection.
 
-# Textbook does this by hand (small table of AIC for a few p,q combos).
-# Same idea here, but exhaustive over p,q in 0:2 and seasonal P,Q in 0:1,
-# with d and D held FIXED from Stage 1 (AICc only compares models fit to
-# the same differenced series).
+# Compare a small grid with fixed differencing orders.
 grid <- expand.grid(p = 0:2, q = 0:2, P = 0:1, Q = 0:1)
 results <- data.frame()
 
@@ -72,8 +50,7 @@ cat("\nTop 8 candidate models by AICc:\n")
 print(head(results, 8), row.names = FALSE)
 write.csv(results, tbl("sarima_grid.csv"), row.names = FALSE)
 
-# Textbook note: AICc difference <= 2 is not substantial - simpler model
-# may be preferred. Worth checking manually against the 2nd-best row.
+# Check the AICc gap to the next candidate.
 best  <- results[1, ]
 label <- sprintf("SARIMA(%d,%d,%d)(%d,%d,%d)[12]",
                   best$p, best$d, best$q, best$P, best$D, best$Q)
@@ -86,13 +63,12 @@ if (nrow(results) > 1) {
       else "(substantial - top model clearly preferred)\n")
 }
 
-# Refit the selected model on the full training set
+# Refit the selected model.
 fit_sarima <- Arima(train,
                      order    = c(best$p, best$d, best$q),
                      seasonal = list(order = c(best$P, best$D, best$Q), period = 12))
 print(summary(fit_sarima))
-# textbook check: are the estimated coefficients significant?
-# (|coefficient| > ~2 * s.e. implies p < 0.05, roughly)
+# Approximate coefficient significance using two standard errors.
 cat("\nCoefficient significance (|coef| > 2*s.e. approx. p<0.05):\n")
 coef_table <- data.frame(
   term = names(coef(fit_sarima)),
@@ -102,12 +78,7 @@ coef_table <- data.frame(
 coef_table$significant <- abs(coef_table$estimate) > 2 * coef_table$se
 print(coef_table, row.names = FALSE)
 
-# ========================================================================
-# STAGE 3: DIAGNOSTIC CHECKING
-# ========================================================================
-
-# Textbook goal: residuals should look like white noise - no leftover
-# pattern the model failed to capture.
+# Stage 3: diagnostic checking.
 
 fc_sarima <- forecast(fit_sarima, h = H)
 
@@ -122,9 +93,7 @@ dev.off()
 cat("\nHoldout accuracy:\n")
 print(accuracy(fc_sarima, test))
 
-# Ljung-Box: formal test for leftover autocorrelation in residuals.
-# fitdf = p+q+P+Q (parameters actually estimated), not Box.test()'s
-# default of 0, which would understate how much was already explained.
+# Test residual autocorrelation with the fitted model degrees of freedom.
 cat("\nLjung-Box test (residuals should be white noise, want p > 0.05):\n")
 print(lb_test(fit_sarima, 12))
 print(lb_test(fit_sarima, LAG_MAX))
@@ -145,13 +114,13 @@ hist(residuals(fit_sarima), main = "Residual histogram", xlab = "")
 qqnorm(residuals(fit_sarima)); qqline(residuals(fit_sarima), col = "red")
 dev.off()
 
-# Overfitting check: training accuracy vs test accuracy
+# Compare training and test accuracy.
 g <- gap_check(accuracy(fc_sarima, test))
 cat("\nOverfitting check (", g$direction, ")\n")
 cat("  MASE gap  :", round(g$mase_gap * 100, 1), "% | <= 10%  :", g$within_10pct, "\n")
 cat("  RMSE ratio:", round(g$rmse_ratio, 3), "  | <= 1.3x :", g$within_1_3x, "\n")
 
-# ---- Save summary row (shared format for group comparison) -------------
+# Save the model summary.
 summ <- model_summary(label, fit_sarima, fc_sarima, test)
 print(summ)
 write.csv(summ, tbl("summary_sarima.csv"), row.names = FALSE)

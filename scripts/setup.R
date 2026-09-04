@@ -1,4 +1,4 @@
-# 00_setup.R - packages, shared paths, shared settings, shared helpers
+# Packages, paths, settings, and shared helpers.
 
 pkgs <- c("forecast", "tseries", "dplyr", "ggplot2", "lubridate", "gridExtra")
 new <- pkgs[!pkgs %in% installed.packages()[, "Package"]]
@@ -11,45 +11,41 @@ library(ggplot2)
 library(lubridate)
 library(gridExtra)
 
-# create output folders
+# Create output folders.
 dir.create("data", showWarnings = FALSE)
 dir.create("output/plots/eda",        showWarnings = FALSE, recursive = TRUE)
 dir.create("output/plots/models",     showWarnings = FALSE, recursive = TRUE)
 dir.create("output/plots/comparison", showWarnings = FALSE, recursive = TRUE)
 dir.create("output/tables", showWarnings = FALSE, recursive = TRUE)
 
-# path helpers
+# Path helpers.
 fig <- function(category, name) file.path("output/plots", category, name)
 tbl <- function(name) file.path("output/tables", name)
 
-# y-axis labels in millions
+# Y-axis labels in millions.
 scale_y_millions <- function() {
   scale_y_continuous(labels = function(x) paste0(round(x / 1e6, 1), "M"))
 }
 
-# ---------------------------------------------------------------------
-# shared settings
-# ---------------------------------------------------------------------
+# Shared settings.
 
-# holdout size: one full seasonal cycle
+# Hold out one seasonal cycle.
 H <- 12
 
-# max lag for Ljung-Box / ACF checks
+# Maximum lag for residual checks.
 LAG_MAX <- 16
 
-# load MCO-resolved series
+# Load the resolved series.
 load_series <- function() readRDS("data/ampang_monthly_full_resolved.rds")
 
-# train/test split
+# Train/test split.
 split_series <- function(y, h = H) {
   list(train = head(y, length(y) - h), test = tail(y, h))
 }
 
-# ---------------------------------------------------------------------
-# shared diagnostic helpers
-# ---------------------------------------------------------------------
+# Diagnostic helpers.
 
-# count residual ACF lags outside the 95% bound
+# Count residual ACF lags outside the 95% bound.
 acf_out_of_bounds <- function(resid, lag.max = LAG_MAX) {
   r <- na.omit(resid)
   n <- length(r)
@@ -58,18 +54,18 @@ acf_out_of_bounds <- function(resid, lag.max = LAG_MAX) {
   sum(abs(a) > ci)
 }
 
-# degrees of freedom used by the fitted ARMA orders
+# Degrees of freedom from the fitted ARMA orders.
 model_fitdf <- function(fit) {
   if (!is.null(fit$arma) && length(fit$arma) >= 4) sum(fit$arma[1:4]) else 0
 }
 
-# Ljung-Box test
+# Ljung-Box test.
 lb_test <- function(fit, lag) {
   Box.test(residuals(fit), lag = lag, fitdf = model_fitdf(fit),
            type = "Ljung-Box")
 }
 
-# train/test overfitting check
+# Train/test accuracy comparison.
 gap_check <- function(acc_matrix) {
   mape_tr <- acc_matrix["Training set", "MAPE"]
   mape_te <- acc_matrix["Test set", "MAPE"]
@@ -92,7 +88,7 @@ gap_check <- function(acc_matrix) {
        within_1_3x  = (rmse_ratio <= 1.3))
 }
 
-# one-line summary row per model
+# Build one summary row per model.
 model_summary <- function(name, fit, fc, test) {
   a  <- accuracy(fc, test)
   g  <- gap_check(a)

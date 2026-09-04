@@ -1,12 +1,9 @@
-# 03_eda.R - EDA + stationarity/seasonality checks on the MCO-resolved,
-# full-period (91-month) series. Each check here is what justifies later
-# choosing SARIMA and its p,d,q / P,D,Q settings - not just plots for
-# their own sake. Uses base R graphics for full layout/axis control.
+# Exploratory analysis and stationarity checks for the resolved series.
 
 source("scripts/setup.R")
 ampang_ts <- readRDS("data/ampang_monthly_full_resolved.rds")
 
-# helper: y-axis in millions instead of scientific notation
+# Label the y-axis in millions.
 axis_millions <- function() {
   at <- pretty(par("usr")[3:4])
   axis(2, at = at, labels = paste0(round(at / 1e6, 1), "M"))
@@ -18,41 +15,36 @@ Acf(ampang_ts,  lag.max = 24, main = "ACF (original series)")
 Pacf(ampang_ts, lag.max = 24, main = "PACF (original series)")
 dev.off()
 
-# --- Visual EDA: combined into ONE figure (2x2 grid) ---
-# Panel 1: raw series - shows trend + visible disruption/recovery shape
-# Panel 2: seasonal plot - checks if a repeating annual pattern exists
-# Panel 3/4: ACF/PACF (on differenced series) - checks for a lag-12 spike,
-# which is the direct evidence for using SEASONAL (SARIMA) terms
+# Summary figure: series, seasonal pattern, ACF, and PACF.
 
 png(fig("eda", "eda_summary.png"), width = 1000, height = 700, res = 130)
 par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
 
-# panel 1: raw series
+# Original series.
 ts.plot(ampang_ts, main = "Monthly Ridership (2019-2026, MCO-resolved)",
         xlab = "Year", ylab = "", yaxt = "n")
 axis_millions()
 
-# panel 2: seasonal plot (base graphics version of ggseasonplot)
+# Seasonal pattern.
 seasonplot(ampang_ts, main = "Seasonal Plot", ylab = "", yaxt = "n",
            col = rainbow(8), year.labels = FALSE)
 axis_millions()
 
-# panel 3: ACF on first difference
+# ACF after first differencing.
 Acf(diff(ampang_ts), lag.max = 24, main = "ACF (first difference)")
 
-# panel 4: PACF on first difference
+# PACF after first differencing.
 Pacf(diff(ampang_ts), lag.max = 24, main = "PACF (first difference)")
 
 dev.off()
 
-# STL decomposition - splits series into trend/seasonal/remainder, used
-# to check seasonal shape/consistency and compute seasonal strength below
+# STL decomposition.
 decomp <- stl(ampang_ts, s.window = "periodic", robust = TRUE)
 png(fig("eda", "stl_decomposition.png"), width = 800, height = 600, res = 130)
 plot(decomp, main = "STL Decomposition")
 dev.off()
 
-# seasonal plot, standalone full-size version
+# Standalone seasonal plot.
 png(fig("eda", "seasonal_plot.png"), width = 800, height = 600, res = 130)
 par(mar = c(4, 4, 3, 1))
 seasonplot(ampang_ts, main = "Seasonal Plot", ylab = "", yaxt = "n",
@@ -60,9 +52,7 @@ seasonplot(ampang_ts, main = "Seasonal Plot", ylab = "", yaxt = "n",
 axis_millions()
 dev.off()
 
-# lag plot - series against itself at lags 1-12. A tight positive
-# pattern specifically at lag 12 is the visual confirmation of annual
-# seasonality, matching the ACF/PACF spike above
+# Lag plots for lags 1 through 12.
 png(fig("eda", "lag_plot.png"), width = 800, height = 800, res = 130)
 par(mfrow = c(3, 4), mar = c(3, 3, 2, 1))
 for (k in 1:12) {
@@ -72,17 +62,15 @@ for (k in 1:12) {
 }
 dev.off()
 
-# seasonal strength (Hyndman's measure) - quantifies how much of the
-# variation is explained by the seasonal pattern vs noise; the main
-# numeric justification for choosing SARIMA over plain ARIMA
+# Seasonal strength from the STL decomposition.
 seasonal_strength <- max(0, 1 - var(decomp$time.series[, "remainder"]) /
                             var(decomp$time.series[, "seasonal"] + decomp$time.series[, "remainder"]))
 cat("Seasonal strength:", round(seasonal_strength, 3), "\n")
 
-# --- stationarity tests: determine differencing order (d) ---
+# Stationarity tests.
 cat("\n--- Level series ---\n")
-print(adf.test(ampang_ts))   # want p < 0.05 for stationary
-print(kpss.test(ampang_ts))  # want p > 0.05 for stationary
+print(adf.test(ampang_ts))
+print(kpss.test(ampang_ts))
 
 cat("\n--- First difference ---\n")
 print(adf.test(diff(ampang_ts)))
