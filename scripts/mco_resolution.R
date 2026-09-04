@@ -48,7 +48,7 @@
 # The influence of this reconstruction on the results is quantified in
 # 10_sensitivity_post_mco.R.
 
-source("scripts/00_setup.R")
+source("scripts/setup.R")
 ampang_ts <- readRDS("data/ampang_monthly_full.rds")
 monthly_df <- readRDS("data/ampang_monthly_full_df.rds")
 

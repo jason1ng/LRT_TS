@@ -12,6 +12,12 @@ axis_millions <- function() {
   axis(2, at = at, labels = paste0(round(at / 1e6, 1), "M"))
 }
 
+png(fig("eda", "acf_pacf_raw.png"), width = 900, height = 400, res = 130)
+par(mfrow = c(1, 2))
+Acf(ampang_ts,  lag.max = 24, main = "ACF (original series)")
+Pacf(ampang_ts, lag.max = 24, main = "PACF (original series)")
+dev.off()
+
 # --- Visual EDA: combined into ONE figure (2x2 grid) ---
 # Panel 1: raw series - shows trend + visible disruption/recovery shape
 # Panel 2: seasonal plot - checks if a repeating annual pattern exists
@@ -25,12 +31,6 @@ par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
 ts.plot(ampang_ts, main = "Monthly Ridership (2019-2026, MCO-resolved)",
         xlab = "Year", ylab = "", yaxt = "n")
 axis_millions()
-
-png(fig("eda", "acf_pacf_raw.png"), width = 800, height = 400, res = 130)
-par(mfrow = c(1, 2))
-Acf(ampang_ts,  lag.max = 24, main = "ACF (raw series, before differencing)")
-Pacf(ampang_ts, lag.max = 24, main = "PACF (raw series, before differencing)")
-dev.off()
 
 # panel 2: seasonal plot (base graphics version of ggseasonplot)
 seasonplot(ampang_ts, main = "Seasonal Plot", ylab = "", yaxt = "n",
