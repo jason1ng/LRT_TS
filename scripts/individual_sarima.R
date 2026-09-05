@@ -321,7 +321,3 @@ results <- data.frame(
 )
 print(results)
 write.csv(results, tbl("sarima_final_summary.csv"), row.names = FALSE)
-
-cat("\nDone. All figures in output/plots/models/, all tables in output/tables/.\n")
-cat("Report only the values this script actually prints - do not carry over\n")
-cat("numbers from a previous draft without re-checking them here.\n")
