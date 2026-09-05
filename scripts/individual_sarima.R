@@ -111,6 +111,7 @@ p_mco <- autoplot(cbind(Original = ampang_ts, Resolved = y)) +
   ggtitle("LRT Ampang: Original vs. MCO-Resolved Series") +
   ylab("Monthly ridership") + scale_y_millions()
 print(p_mco)
+ggsave(fig("mco_resolution.png"), p_mco, width = 9, height = 5, dpi = 150)
 
 # ---- identification: differencing orders --------------------------------
 train <- head(y, length(y) - H)
@@ -131,9 +132,26 @@ seasonal_strength <- max(0, 1 - var(decomp$time.series[, "remainder"]) /
                             var(decomp$time.series[, "seasonal"] + decomp$time.series[, "remainder"]))
 cat("\nSTL seasonal strength:", round(seasonal_strength, 3), "\n")
 
-# ACF/PACF of the STATIONARY series - the actual basis for order
-# identification (raw-series ACF/PACF, plotted only to justify d, D,
-# belongs in the group report).
+png(fig("stl_decomposition.png"), width = 800, height = 600, res = 130)
+plot(decomp, main = "STL Decomposition")
+dev.off()
+
+# ---- MANUAL order identification (before the grid search) ---------------
+# Step 1: read the RAW series' ACF/PACF. This is what a human analyst
+# would look at first, before any differencing or automated search.
+png(fig("acf_pacf_raw.png"), width = 800, height = 400, res = 130)
+par(mfrow = c(1, 2))
+Acf(train,  lag.max = 24, main = "ACF (raw series)")
+Pacf(train, lag.max = 24, main = "PACF (raw series)")
+dev.off()
+cat("\nManual read (raw series): ACF decays slowly/near-linearly, PACF has a\n",
+    "single dominant spike at lag 1 that then dies out - the classic\n",
+    "non-stationary, trending signature. This is confirmed formally above\n",
+    "by ADF/KPSS, and motivates differencing before any order is read.\n")
+
+# Step 2: read the ACF/PACF of the STATIONARY (post-differencing) series.
+# This is where a manual Box-Jenkins reading would tentatively propose
+# non-seasonal and seasonal orders.
 stationary_train <- diff(train, differences = d)
 if (D > 0) stationary_train <- diff(stationary_train, lag = 12)
 
@@ -142,6 +160,14 @@ par(mfrow = c(1, 2))
 Acf(stationary_train,  lag.max = 24, main = "ACF (stationary series)")
 Pacf(stationary_train, lag.max = 24, main = "PACF (stationary series)")
 dev.off()
+cat("\nManual read (stationary series): a spike persists near lag 12 in both\n",
+    "ACF and PACF - consistent with seasonal AR and/or MA structure rather\n",
+    "than pure noise (supports D = 0: the seasonal signal survives because\n",
+    "it was NOT removed by seasonal differencing, so seasonal AR/MA terms\n",
+    "are needed to capture it). The non-seasonal lags decay without a single\n",
+    "clean AR- or MA-type cutoff, so a manual reading alone cannot uniquely\n",
+    "pin down (p,q) here - an AICc grid search below is used to double-check\n",
+    "and resolve this ambiguity rather than relying on visual judgement alone.\n")
 
 # ---- estimation: AICc grid search, d/D fixed -----------------------------
 grid <- expand.grid(p = 0:2, q = 0:2, P = 0:1, Q = 0:1)
